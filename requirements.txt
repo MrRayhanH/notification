@@ -1,0 +1,7 @@
+flask
+gunicorn
+joblib
+numpy
+scikit-learn==1.6.1
+sentence-transformers
+torch
