@@ -7,7 +7,8 @@ app = Flask(__name__)
 
 # Load model files
 clf = joblib.load("emoji_classifier.joblib")
-label_map = pickle.load(open("label_map.pkl", "rb"))
+with open("label_map.pkl", "rb") as f:
+    label_map = pickle.load(f)
 
 # Lazy-load encoder (slow on first request)
 _encoder = None
@@ -17,21 +18,17 @@ def get_encoder():
         _encoder = SentenceTransformer("all-MiniLM-L6-v2")
     return _encoder
 
-
-# ✅ Health / root endpoint (Render will stop giving 502 if health check passes)
+# ✅ Root endpoint (Render health check)
 @app.get("/")
-def root():
-    return jsonify({"status": "ok", "service": "emoji-notification-api"}), 200
-
+def home():
+    return "OK", 200
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "healthy"}), 200
-
+    return jsonify({"status": "ok"}), 200
 
 @app.post("/predict")
 def predict():
-    # Accept JSON or form-data, and accept both 'title' and 'tittle'
     data = request.get_json(silent=True) or {}
     text = (
         request.form.get("title")
@@ -47,10 +44,11 @@ def predict():
     emb = encoder.encode([text], normalize_embeddings=True)
     code = int(clf.predict(emb)[0])
 
-    return jsonify({"label": label_map[code], "label_code": code}), 200
+    # safer: label_map may have str keys depending how you saved it
+    label = label_map.get(code) or label_map.get(str(code))
 
+    return jsonify({"label": label, "label_code": code}), 200
 
 if __name__ == "__main__":
-    # ✅ For local run only; Render uses gunicorn
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
